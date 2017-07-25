@@ -89,31 +89,33 @@ def updateProgram():
       log.debug("Most Recent:", newVersion,"| Our Version:", versionCurrent)
       if newVersion != versionCurrent: #The tag should be the released version
         if questionBox("Version "+newVersion+" now available! Would you like to update?", title="Update"):
-          log.info("Updating to version", newVersion)
-          fileData = updateData["assets"][0]
-          webAddress = fileData["browser_download_url"]
-          #                                used to be 'fileData["name"]'
-          with urlopen(webAddress) as webfile, open(UPDATE_FILE, "wb") as file:
-            log.debug("Downloading new file from", webAddress)
-            #Both file and webfile are automatically buffered, so this is fine to do
-            copyfileobj(webfile, file)
-          subprocess.Popen(fileData["name"]) #Call this file and then exit the program
-          return True
+          try: #After this point, we want another exception handler that will stop the program with error, because the user expects a download to be happening
+            log.info("Updating to version", newVersion)
+            fileData = updateData["assets"][0]
+            webAddress = fileData["browser_download_url"]
+            #                                used to be 'fileData["name"]'
+            with urlopen(webAddress) as webfile, open(UPDATE_FILE, "wb") as file:
+              progress = FileDLProgressBar("Downloading new update")
+              progress.start()
+              log.debug("Downloading new file from", webAddress)
+              #Both file and webfile are automatically buffered, so this is fine to do
+              copyfileobj(webfile, file)
+              progress.close()
+            subprocess.Popen(UPDATE_FILE) #Call this file and then exit the program
+          except IndexError: #No binary attached to release -- no assets (probably)
+            #In future we might check updates before this one, to ensure we are somewhat updated
+            log.error("No binary attached to most recent release!")
+          except BaseException as e: #BaseException because return statement in finally stops anything from getting out
+            log.error("Error in downloading new update!", exc_info = e)
+          finally:
+            return True #Notice: This stops any error propagation for other errors
         else:
          log.info("User declined update")
          
       else:
         log.info("We have the most recent version")
-  except OSError as e: #Error in getting the url
-    #only warning because this means they are likely not connected to the internet
-    log.warning("File download error!", exc_info = e) 
-  except IndexError: #No binary attached to release -- no assets (probably)
-    log.error("No binary attached to most recent release!")
   except Exception as e:
-    log.error("Error in update!", exc_info = e) #Log the error
+    #Log the error. We still want them to run the program if update was not successful
+    log.error("Error in update!", exc_info = e) 
   #If we did not return in the function, we did not update properly
   return False
-  
-  
-def updateYoutubeDL():
-  log.info("Updating Youtube-DL")

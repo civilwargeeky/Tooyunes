@@ -38,16 +38,17 @@ def questionBox(message, title = "Message"):
 
 #Makes a progressBar window
 class FileDLProgressBar():
-  def __init__(self, message, title = "File Download"):
+  def __init__(self, message, *args, title = "File Download"):
     self.started = False
     self.root = None #Prevent name error from not started
     self.title = title
     self.message = message
     self.args = []
     self.index = 0
+    self.add(args) #Add in any arguments if we want
     
   def getString(self):
-    return self.message + "\n" + (self.args[self.index] or "(None)")
+    return self.message + "\n" + (self.args[self.index] or "")
     
   def start(self):
     if not self.started:

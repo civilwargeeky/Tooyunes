@@ -22,4 +22,5 @@ log.addHandler(outHandler)
 #Also add a handler for error handlers, py2exe makes a special file for this
 errHandler = logging.StreamHandler(sys.stderr)
 errHandler.setLevel(logging.ERROR)
+errHandler.setFormatter(logging.Formatter("%(asctime)s ERROR!!! Please contact the program creator with this information: %(message)s"))
 log.addHandler(errHandler)
