@@ -2,12 +2,13 @@
 import json, os, subprocess
 from io import BytesIO
 from shutil import copyfileobj
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 from zipfile import ZipFile
 join = os.path.join #Alias for time saving
 
 from log import log
-from msgBox import questionBox, FileDLProgressBar
+from msgBox import msgBox, questionBox, FileDLProgressBar
 
 #CONSTANTS
 UPDATE_LINK = "https://api.github.com/repos/civilwargeeky/Tooyunes/releases/latest"
@@ -17,53 +18,61 @@ YT_DL_LINK  = "https://yt-dl.org/downloads/latest/youtube-dl.exe"
 UPDATE_FILE = "Updater.exe"
 
 #Checks if this is a first-time installation (we need to install ffmpeg, ffprobe, and youtube-dl)
-#NOTE ON ERRORS: We do not check for internet errors, because if we don't have internet here, we can't do anything
+#Returns false if the program cannot continue (no internet, etc.), true otherwise
 def checkInstall():
   if not os.path.isdir("resources"):
     os.mkdir("resources")
-    
-  progress = FileDLProgressBar("Performing first-time installation. Please wait")
-    
-  #Do youtube check ahead of time in order to make good indicator box
-  ytNeeded = not os.path.exists(join("resources", "youtube-dl.exe"))
-  if ytNeeded:
-    progress.add("Downloading youtube-dl.exe", "Done!")
   
-  fileList = ["ffmpeg.exe", "ffprobe.exe"]
-  for file in fileList:
-    if not os.path.exists(join("resources",file)):
-      progress.addStart("Downloading ffmpeg .zip file (this one can take a while)", *["Writing " + i for i in fileList])
+  progress = FileDLProgressBar("Performing first-time installation. Please wait")
+  try:
+  
+    #Do youtube check ahead of time in order to make good indicator box
+    ytNeeded = not os.path.exists(join("resources", "youtube-dl.exe"))
+    if ytNeeded:
+      progress.add("Downloading youtube-dl.exe", "Done!")
+    
+    fileList = ["ffmpeg.exe", "ffprobe.exe"]
+    for file in fileList:
+      if not os.path.exists(join("resources",file)):
+        progress.addStart("Downloading ffmpeg .zip file (this one can take a while)", *["Writing " + i for i in fileList])
+        progress.start()
+        log.warning("Resources file:", file,"does not exist, downloading")
+        #Well great, now we have to download and parse the zip file
+        zipURL = Request(FFMPEG_LINK,
+          headers = {"User-Agent": "Python Agent"} #Apparently the agent just has to exist
+          )
+        with urlopen(zipURL) as response:
+          log.debug("Writing response to Bytes")
+          dlZip = ZipFile(BytesIO(response.read()))
+          log.debug("File downloaded")
+        for descriptor in dlZip.namelist():
+          file = os.path.basename(descriptor)
+          if file in fileList:
+            progress.next() #Go to the next progress bar action
+            log.debug("Found file:", descriptor)
+            fileList.pop(fileList.index(file))
+            with dlZip.open(descriptor) as source, open(join("resources", file), "wb") as dest:
+              copyfileobj(source, dest)
+            log.debug("File write successful")
+        break
+    if ytNeeded:
       progress.start()
-      log.warning("Resources file:", file,"does not exist, downloading")
-      #Well great, now we have to download and parse the zip file
-      zipURL = Request(FFMPEG_LINK,
-        headers = {"User-Agent": "Python Agent"} #Apparently the agent just has to exist
-        )
-      with urlopen(zipURL) as response:
-        log.debug("Writing response to Bytes")
-        dlZip = ZipFile(BytesIO(response.read()))
-        log.debug("File downloaded")
-      for descriptor in dlZip.namelist():
-        file = os.path.basename(descriptor)
-        if file in fileList:
-          progress.next() #Go to the next progress bar action
-          log.debug("Found file:", descriptor)
-          fileList.pop(fileList.index(file))
-          with dlZip.open(descriptor) as source, open(join("resources", file), "wb") as dest:
-            copyfileobj(source, dest)
-          log.debug("File write successful")
-      break
-  if ytNeeded:
-    progress.start()
-    log.warning("Resources file: youtube-dl.exe does not exist, downloading")
-    with urlopen(YT_DL_LINK) as source, open(join("resources", "youtube-dl.exe"), "wb") as dest:
-      copyfileobj(source, dest)
-    log.debug("Write Success")
-    progress.next() #Say "Done!"
-  progress.close()
+      log.warning("Resources file: youtube-dl.exe does not exist, downloading")
+      with urlopen(YT_DL_LINK) as source, open(join("resources", "youtube-dl.exe"), "wb") as dest:
+        copyfileobj(source, dest)
+      log.debug("Write Success")
+      progress.next() #Say "Done!"
+  except URLError:
+    log.warning("Not connected to the internet")
+    progress.close()
+    msgBox("Not connected to the internet!", size=(200,200))
+    return False
+  finally: #Close the window regardless
+    progress.close()
+  return True #If rest of program succeeded
 
 #Downloads a new program installer if the github version is different than ours
-#Returns true on successful update (installer should be running), false otherwise
+#Returns true on successful update (installer should be running), "No Internet" on internet error, false otherwise
 def updateProgram():
   try:
     if os.path.exists(UPDATE_FILE):
@@ -114,6 +123,10 @@ def updateProgram():
          
       else:
         log.info("We have the most recent version")
+  except URLError:
+    log.warning("Not connected to the internet!")
+    msgBox("Not connected to the internet!", size=(200, 200))
+    return "No Internet"
   except Exception as e:
     #Log the error. We still want them to run the program if update was not successful
     log.error("Error in update!", exc_info = e) 

@@ -11,7 +11,8 @@ if path.exists("lib"):
 
 
 def main():
-  updater.checkInstall()
+  if updater.checkInstall() == False: #Signals we have no internet
+    return
   
   if updater.updateProgram(): #If this returns true, an update is in progress so we should exit
     log.info("Main exiting")

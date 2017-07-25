@@ -5,6 +5,14 @@ from os.path import join
 
 from log import log
 
+class Window(tk.Tk):
+  def __init__(self, title = None, icon = join("img", "mainIcon.ico"), *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    if title: self.title(title)
+    if icon: #Only add it if we can't, don't error
+      try: self.iconbitmap(icon)
+      except: pass
+
 def questionBox(message, title = "Message"):
   retVal = False
   def OK():
@@ -17,9 +25,7 @@ def questionBox(message, title = "Message"):
     root.destroy()
 
   try:
-    root = tk.Tk()
-    root.title(title)
-    root.iconbitmap(join("img","mainIcon.ico"))
+    root = Window(title = title)
     root.minsize(width = 200, height = 20)
     root.protocol("WM_DELETE_WINDOW", Cancel) #On pressing the X
     root.grid_columnconfigure(0, weight=1)
@@ -35,6 +41,12 @@ def questionBox(message, title = "Message"):
   finally: #No matter what, try to get rid of the window
     try: root.destroy()
     except: pass
+    
+def msgBox(message, title = "", size = None):
+  root = Window(title = title)
+  if size: root.minsize(width = size[0], height = size[1])
+  tk.Label(root, text=message, padx=15, pady=15).pack(expand=True)
+  root.mainloop()
 
 #Makes a progressBar window
 class FileDLProgressBar():
@@ -45,7 +57,7 @@ class FileDLProgressBar():
     self.message = message
     self.args = []
     self.index = 0
-    self.add(args) #Add in any arguments if we want
+    self.add(*args) #Add in any arguments if we want
     
   def getString(self):
     return self.message + "\n" + (self.args[self.index] or "")
@@ -53,11 +65,7 @@ class FileDLProgressBar():
   def start(self):
     if not self.started:
       self.started = True
-      self.root = tk.Tk()
-      self.root.title(self.title)
-      try:
-        self.root.iconbitmap(join("img","mainIcon.ico"))
-      except: pass
+      self.root = Window(title = self.title)
       self.root.protocol("WM_DELETE_WINDOW", self.close)
       self.label = tk.Label(self.root, text=self.getString())
       self.label.pack()
