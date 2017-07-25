@@ -12,6 +12,7 @@ class Window(tk.Tk):
     if icon: #Only add it if we can't, don't error
       try: self.iconbitmap(icon)
       except: pass
+    #ttk.Style().theme_use("clam") #Looks weird when widgets don't take up whole space. Maybe someday
 
 def questionBox(message, title = "Message"):
   retVal = False
@@ -29,9 +30,9 @@ def questionBox(message, title = "Message"):
     root.minsize(width = 200, height = 20)
     root.protocol("WM_DELETE_WINDOW", Cancel) #On pressing the X
     root.grid_columnconfigure(0, weight=1)
-    frame = tk.Frame(root)
+    frame = ttk.Frame(root)
     frame.grid(row=0, column=0, sticky=tk.N)
-    ttk.Label(frame, text = message, padding="15 15").grid(row=0, columnspan=2)
+    ttk.Label(frame, text=message, padding="15 15").grid(row=0, columnspan=2)
     ttk.Button(frame, text="OK", command=OK).grid(row=1, sticky=tk.E)
     ttk.Button(frame, text="Cancel", command=Cancel).grid(row=1, column=1, sticky=tk.W)
     
@@ -45,7 +46,7 @@ def questionBox(message, title = "Message"):
 def msgBox(message, title = "", size = None):
   root = Window(title = title)
   if size: root.minsize(width = size[0], height = size[1])
-  tk.Label(root, text=message, padx=15, pady=15).pack(expand=True)
+  ttk.Label(root, text=message, padding="15 15").pack(expand=True)
   root.mainloop()
 
 #Makes a progressBar window
@@ -67,7 +68,7 @@ class FileDLProgressBar():
       self.started = True
       self.root = Window(title = self.title)
       self.root.protocol("WM_DELETE_WINDOW", self.close)
-      self.label = tk.Label(self.root, text=self.getString())
+      self.label = ttk.Label(self.root, text=self.getString())
       self.label.pack()
       self.progressBar = ttk.Progressbar(self.root, value=self.index)
       self.progressBar.pack()
@@ -92,11 +93,27 @@ class FileDLProgressBar():
       self.root.update()
     
   def next(self):
-    self.index += 1
-    if self.index < len(self.args):
+    if self.index + 1 < len(self.args):
+      self.index += 1
       self.update()
+      return True
+    return False
 
   def close(self):
     if self.root:
       self.root.destroy()
       self.root = None #Signal that we can't update things anymore
+      
+def runTest():
+  from time import sleep
+  print("Beginning test")
+  print(questionBox("Do you want to answer this question?"))
+  sleep(1)
+  print(msgBox("Test Box"))
+  sleep(1)
+  a = FileDLProgressBar("Test Box", "Stage 1", "Stage 2", "Stage 3")
+  a.start()
+  sleep(1)
+  while a.next():
+    sleep(1)
+  a.close()
