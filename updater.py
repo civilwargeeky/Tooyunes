@@ -14,6 +14,8 @@ UPDATE_LINK = "https://api.github.com/repos/civilwargeeky/Tooyunes/releases/late
 FFMPEG_LINK = "http://ffmpeg.zeranoe.com/builds/win64/static/ffmpeg-3.3.2-win64-static.zip"
 YT_DL_LINK  = "https://yt-dl.org/downloads/latest/youtube-dl.exe"
 
+UPDATE_FILE = "Updater.exe"
+
 #Checks if this is a first-time installation (we need to install ffmpeg, ffprobe, and youtube-dl)
 #NOTE ON ERRORS: We do not check for internet errors, because if we don't have internet here, we can't do anything
 def checkInstall():
@@ -63,15 +65,20 @@ def checkInstall():
 #Downloads a new program installer if the github version is different than ours
 #Returns true on successful update (installer should be running), false otherwise
 def updateProgram():
-
-  #First thing we do is check for updates
+  try:
+    if os.path.exists(UPDATE_FILE):
+      os.remove(UPDATE_FILE)
+  except PermissionError:
+    log.error("Cannot remove installer exe, must be open still")
+    return False
+  
   try: #Get our version so we see if we need to update
     with open("version.txt") as file:
       versionCurrent = file.read()
       log.debug("Current Version:", versionCurrent)
   except:
     versionCurrent = None
-    log.error("Version file not found")
+    log.warning("Version file not found")
     
   try:
     log.info("Beginning update check")
@@ -85,7 +92,8 @@ def updateProgram():
           log.info("Updating to version", newVersion)
           fileData = updateData["assets"][0]
           webAddress = fileData["browser_download_url"]
-          with urlopen(webAddress) as webfile, open(fileData["name"], "wb") as file:
+          #                                used to be 'fileData["name"]'
+          with urlopen(webAddress) as webfile, open(UPDATE_FILE, "wb") as file:
             log.debug("Downloading new file from", webAddress)
             #Both file and webfile are automatically buffered, so this is fine to do
             copyfileobj(webfile, file)
