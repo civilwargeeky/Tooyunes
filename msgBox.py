@@ -21,6 +21,7 @@ def questionBox(message, title = "Message"):
     root.title(title)
     root.iconbitmap(join("img","mainIcon.ico"))
     root.minsize(width = 200, height = 20)
+    root.protocol("WM_DELETE_WINDOW", Cancel) #On pressing the X
     root.grid_columnconfigure(0, weight=1)
     frame = tk.Frame(root)
     frame.grid(row=0, column=0, sticky=tk.N)
@@ -29,6 +30,8 @@ def questionBox(message, title = "Message"):
     ttk.Button(frame, text="Cancel", command=Cancel).grid(row=1, column=1, sticky=tk.W)
     
     root.mainloop()
+    
+    return retVal #If we exit nicely, we can give a return value
   finally: #No matter what, try to get rid of the window
     try: root.destroy()
     except: pass

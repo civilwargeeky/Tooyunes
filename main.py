@@ -14,6 +14,7 @@ def main():
   updater.checkInstall()
   
   if updater.updateProgram(): #If this returns true, an update is in progress so we should exit
+    log.info("Main exiting")
     return
   
   root = tk.Tk()
