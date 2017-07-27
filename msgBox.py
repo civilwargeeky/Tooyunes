@@ -1,5 +1,6 @@
 import threading
 import tkinter as tk
+import tkinter.messagebox as m
 from tkinter import ttk
 from os.path import join
 
@@ -14,6 +15,12 @@ class Window(tk.Tk):
       except: pass
     #ttk.Style().theme_use("clam") #Looks weird when widgets don't take up whole space. Maybe someday
 
+def errorBox(message, title = "Error"):
+  root = tk.Tk()
+  root.withdraw()
+  m.showerror("Tooyunes: " + title, message)
+  root.destroy()
+    
 def questionBox(message, title = "Message"):
   retVal = False
   def OK():
@@ -42,12 +49,6 @@ def questionBox(message, title = "Message"):
   finally: #No matter what, try to get rid of the window
     try: root.destroy()
     except: pass
-    
-def msgBox(message, title = "", size = None):
-  root = Window(title = title)
-  if size: root.minsize(width = size[0], height = size[1])
-  ttk.Label(root, text=message, padding="15 15").pack(expand=True)
-  root.mainloop()
 
 #Makes a progressBar window
 class FileDLProgressBar():

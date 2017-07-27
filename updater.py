@@ -8,7 +8,7 @@ from zipfile import ZipFile
 join = os.path.join #Alias for time saving
 
 from log import log
-from msgBox import msgBox, questionBox, FileDLProgressBar
+from msgBox import errorBox, questionBox, FileDLProgressBar
 
 #CONSTANTS
 UPDATE_LINK = "https://api.github.com/repos/civilwargeeky/Tooyunes/releases/latest"
@@ -18,7 +18,7 @@ YT_DL_LINK  = "https://yt-dl.org/downloads/latest/youtube-dl.exe"
 UPDATE_FILE = "Updater.exe"
 
 #Checks if this is a first-time installation (we need to install ffmpeg, ffprobe, and youtube-dl)
-#Returns false if the program cannot continue (no internet, etc.), true otherwise
+#Returns true if the installation is up to date, false otherwise
 def checkInstall():
   if not os.path.isdir("resources"):
     os.mkdir("resources")
@@ -64,15 +64,15 @@ def checkInstall():
       progress.next() #Say "Done!"
   except URLError:
     log.warning("Not connected to the internet")
-    progress.close()
-    msgBox("Not connected to the internet!", size=(200,200))
-    return False
+    errorBox("Not connected to the internet!", title="Fatal Error")
+    raise RuntimeError("No internet")
   finally: #Close the window regardless
     progress.close()
-  return True #If rest of program succeeded
+  return True #If rest of program succeeded in updating
 
 #Downloads a new program installer if the github version is different than ours
-#Returns true on successful update (installer should be running), "No Internet" on internet error, false otherwise
+#Returns true on successful update (installer should be running), false otherwise
+#If there is no internet, raises a RuntimeError stating so
 def updateProgram():
   try:
     if os.path.exists(UPDATE_FILE):
@@ -125,8 +125,8 @@ def updateProgram():
         log.info("We have the most recent version")
   except URLError:
     log.warning("Not connected to the internet!")
-    msgBox("Not connected to the internet!", size=(200, 200))
-    return "No Internet"
+    errorBox("Not connected to the internet!", title="Fatal Error")
+    raise RuntimeError("No internet")
   except Exception as e:
     #Log the error. We still want them to run the program if update was not successful
     log.error("Error in update!", exc_info = e) 

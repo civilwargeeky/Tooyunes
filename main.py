@@ -1,5 +1,3 @@
-import tkinter as tk
-
 import updater
 from log import log
 
@@ -9,24 +7,26 @@ if path.exists("lib"):
   environ["TCL_LIBRARY"] = path.join(getcwd(), "lib", "tcl8.6")
   environ["TK_LIBRARY"]  = path.join(getcwd(), "lib", "tk8.6")
 
-
-def main():
+#Returns false if the program should abort, true otherwise
+def checkUpdates():
   if updater.checkInstall() == False: #Signals we have no internet
-    return
+    return False
   
   if updater.updateProgram(): #If this returns true, an update is in progress so we should exit
     log.info("Main exiting")
-    return
-  
-  root = tk.Tk()
-  root.title("Title")
-  root.minsize(width=1000, height=1000)
-  background_image = tk.PhotoImage(file="img\\bright.png")
-  background_label = tk.Label(root, image = background_image)
-  background_label.place(x=0, y=0, relwidth=1, relheight=1)
+    return False
+  return True
 
-  root.mainloop()
+
+def main():  
+  pass
   
   
 if __name__ == "__main__":
+  try:
+    checkUpdates()
+  except RuntimeError: #Raised when the internet fails
+    import sys
+    sys.exit()
+  #After updates go into main
   main()
