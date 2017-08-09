@@ -1,7 +1,11 @@
 #Handles all the GUI work for the main program
+import math
 import tkinter as tk
 from tkinter import ttk
+from log import log, consoleQueue, EmptyException
 from os.path import join
+from PIL import Image, ImageTk
+
 
 class Window(tk.Tk):
   def __init__(self, title = None, icon = join("img", "mainIcon.ico"), *args, **kwargs):
@@ -13,9 +17,11 @@ class Window(tk.Tk):
     #ttk.Style().theme_use("clam") #Looks weird when widgets don't take up whole space. Maybe someday
 
 class MenuBar(tk.Menu):
-  def __init__(self, parent, tearoff=0):
+  def __init__(self, parent, toAdd = None, tearoff=0):
     print("Making new bar")
     super().__init__(parent, tearoff=tearoff)
+    if toAdd:
+      self.addOptions(*toAdd)
   
   #Adds options to a menubar
   #PRE: each arg should be a tuple of the form (label, [options dict,] command/subtree tuple)
@@ -28,7 +34,7 @@ class MenuBar(tk.Menu):
   def addOptions(self, *args):
     for element in args: #Each element is a tuple describing the list option
       print("Adding element:", element)
-      if (type(element) not in (tuple, list)):
+      if not isinstance(element, (tuple, list)):
         raise TypeError("MenuBar expected a list/tuple, got '"+str(type(element))+"'")
       if element[0] == "-": #Special case
         self.add_separator()
@@ -50,7 +56,7 @@ class MenuBar(tk.Menu):
           action = element[2] #If we keyerror here there was no action
         except IndexError: #Yeah, we still want an index error, just be a bit more descriptive
           raise IndexError("MenuBar expected a command following options dict")
-      if type(action) in (tuple, list): #We are adding a cascade
+      if isinstance(action, (tuple, list)): #We are adding a cascade
         print("Adding a cascade")
         print("Action: ", action)
         newMenu = MenuBar(self) #Then we recurse to the next one
@@ -63,9 +69,182 @@ class MenuBar(tk.Menu):
         self.add(toAdd, label=label, command=action, **options)
       
 
-from os.path import join
-from tkinter import *
+# Background should be applied to a Frame. When the size of the frame is changed, the image size is updated
+class Background():
+  def __init__(self, parent, filename):
+  
+    self.parent = parent
+    self.size = (0,0) #Set size to fake value
+    self.filename = filename #Set initial filename
+    self.img = None
+    self.label = tk.Label(parent)
+    self.label.place(x=0, y=0, relwidth=1, relheight=1)
+    
+    #We configure when the window opens, so we will get properly sized
+    parent.bind("<Configure>", self.receiveConfigure)
+    
+  def updateImage(self, filename = None):
+    if not self.img: #If this is the first time we load image
+      self.img = Image.open(self.filename)
+    elif filename and filename != self.filename:
+      self.filename = filename
+      self.img = Image.open(filename)
+    print(self.img.size)
+    print(self.size)
+    #Find the smallest size so that the image doesn't overflow the
+    multiplier = min(*[self.size[i]/self.img.size[i] for i in range(2)])
+    print(multiplier)
+    try:
+      newImg = self.img.resize([math.floor(i * multiplier) for i in self.img.size], Image.BICUBIC)
+    except ValueError: #Done when the canvas size is listed as (1,1) before full initialization
+      return #Don't do anything here
+    self.tkImage = ImageTk.PhotoImage(newImg)
+    self.label.config(image=self.tkImage)
+  
+  def receiveConfigure(self, event = None):
+    newSize = (event.width, event.height)
+    if self.size != newSize:
+      self.size = newSize #Update our size
+      self.updateImage()  #Change the background if size changed
+
+
+class MultiColumnList(ttk.Treeview):
+  def __init__(self, parent, columns):
+    self.lastSorted = None
+  
+    super().__init__(parent, columns=columns, show="headings", height=0)
+    #Makes a scrollbar. Scrolling on the bar moves the listview up or down
+    scrollbar = ttk.Scrollbar(parent, command=self.yview)
+    #Configures the tree such that scrolling while focused on the tree moves the bar
+    self.configure(yscrollcommand=scrollbar.set)
+    
+    #Properly grid so they expand nicely
+    self.grid(column=0, row=0, sticky="new")
+    scrollbar.grid(column=1, row=0, sticky="ns")
+    
+    #Configure the columns so they expand properly
+    parent.grid_columnconfigure(0, weight=1)
+    parent.grid_rowconfigure(0, weight=1)
+    
+    #Add names for all the headings
+    for column in columns:
+      self.heading(column, text=column, anchor="w",
+        command=lambda column=column: self.sortby(column, False))
+        
+      
+  def addItem(self, values):
+    self.insert('', 'end', values=values)
+    self.configure(height=len(self.get_children("")))
+    
+  def sortby(self, column, descending=False):
+    #Makes a list up tuples with (Value, child name) to be sorted
+    data = [(self.set(child, column), child) for child in self.get_children("")]
+    
+    #Tuples are sorted element-by-element so first element is the column value
+    data.sort(reverse=descending)
+    
+    for i, item in enumerate(data):
+      #Moves the item name to a new index
+      self.move(item[1], '', i)
+    
+    #Then reverse the direction the function will sort
+    # https://www.compart.com/en/unicode/block/U+25A0
+                                         #small down arrow            #small up arrow
+    self.heading(column, text=column+" "+("\u25BF" if descending else "\u25B5"),
+      command=lambda col=column: self.sortby(col, not descending))
+    #Change last heading being sorted to not have an arrow (if is not this column)
+    if self.lastSorted and self.lastSorted != column:
+      self.heading(self.lastSorted, text=self.lastSorted)
+    self.lastSorted = column
+    
+class TextQueueWatcher(tk.Text):
+  def __init__(self, parent, queue, pollTime = 250):
+    self.parent = parent
+    self.queue  = queue
+    self.pollTime = pollTime #In milliseconds
+    self._hasInsert = False
+    super().__init__(parent, width=10, height=1, state="disabled")
+    #Whenever size changes, reset to end of list
+    parent.bind("<Configure>", self.scrollToEnd)
+    
+    #Start waiting for queue messages
+    self.poll()
+    
+  def insert(self, toInsert):
+    #First line we don't have a newline
+    if self._hasInsert: toInsert = "\n"+toInsert
+    #Set state so we can write
+    self.config(state="normal")
+    #Add to end
+    super().insert("end", toInsert)
+    #Remove ability to write
+    self.config(state="disabled")
+    #Scan to end
+    self.scrollToEnd()
+    #Set that we have inserted
+    if not self._hasInsert: self._hasInsert = True
+    
+  #Only scrolls if it has focus
+  def scrollToEnd(self, *arg):
+    #If we aren't focused on this widget (user not scrolling)
+    if self != self.focus_get(): 
+      self.see("end")
+      
+  #Poll the queue for new messages to add
+  def poll(self):
+    while True:
+      try:
+        record = self.queue.get_nowait()
+      except EmptyException: #Keep going until we have nothing to write
+        break
+      self.insert(record.msg) #Then insert message
+      
+    self.after(self.pollTime, self.poll)
+    
+
+def main(title, size = (200,200)):
+  root = tk.Tk()
+  root.title(title)
+  root.minsize(width = size[0], height = size[1])
+  
+  menu = MenuBar(root, [
+   ("File", []),
+   ("Edit", []),
+   ("Preferences", []),
+  ])
+  root.config(menu=menu)
+  
+  mainWindow = Frame(root, bg="blue")
+  console = Frame(root, bg="white", width=50)
+  background = Background(mainWindow, "img/dark.png")
+  #Label(mainWindow, text="I am a label").pack()
+  
+  a = MultiColumnList(mainWindow, ("Test", "Hi"))
+  a.addItem(("Column 1", "Column 2"))
+  a.addItem(("Column 4", "Column 1"))
+  
+  list = TextQueueWatcher(console, consoleQueue)
+  list.pack(side="left", fill='both', expand=True)
+  scrollbar = ttk.Scrollbar(console, command=list.yview)
+  scrollbar.pack(side="right", fill="y", expand=True, anchor="e")
+  #Configures the tree such that scrolling while focused on the tree moves the bar
+  list.configure(yscrollcommand=scrollbar.set)
+  list.insert("Entry")
+  list.insert("New Entry")
+  list.insert("New Entry")
+  
+  root.grid_columnconfigure(0, weight=4)
+  root.grid_columnconfigure(1, weight=1)
+  root.grid_rowconfigure(0, weight=2)
+  root.grid_rowconfigure(1, weight=1)
+  mainWindow.grid(row=0, column=0, rowspan=2, sticky="nsew")
+  Frame(root, bd=5, bg="black", width=50).grid(row=0, column=1, sticky="nsew")
+  console.grid(row=1, column=1, sticky="nsew")
+
+  root.mainloop()
+
 if __name__ == "__main__":
+
   import tkinter as tk
   from tkinter import ttk
   
@@ -80,56 +259,73 @@ if __name__ == "__main__":
   
   root = tk.Tk()
   root.title("Title")
-  root.minsize(width=1000, height=1000)
+  root.minsize(width=200, height=200)
+
+  # a = MenuBar(root)
+  # a.addOptions(
+    # ("Test", [
+      # ("-",),
+      # ("Why", None),
+      # ("Test Button", {"type":"radiobutton"}, None),
+      # ("Test cascade", (
+        # ("Button Button", None),
+        # ("The best button", None),
+        # ("Second cascade!!!", [
+          # ["I am test button", (
+            # ("Hidden stuff", None),
+          # )]
+        # ])
+      # )),
+      # ("Test Button 2", {"type":"radiobutton"}, None)
+    # ])
+  # )
+  # root.config(menu=a)
+  # root.mainloop()  
+  # raise Exception
   
-  def hello():
-    print("hello!")
-
-  a = MenuBar(root)
-  a.addOptions(
-    ("Test", [
-      ("-",),
-      ("Why", None),
-      ("Test Button", {"type":"radiobutton"}, None),
-      ("Test cascade", (
-        ("Button Button", None),
-        ("The best button", None),
-        ("Second cascade!!!", [
-          ["I am test button", (
-            ("Hidden stuff", None),
-          )]
-        ])
-      )),
-      ("Test Button 2", {"type":"radiobutton"}, None)
-    ])
-  )
-  root.config(menu=a)
-  root.mainloop()  
-  raise Exception
-    
-  menubar = Menu(root, tearoff=0)
-
-  # create a pulldown menu, and add it to the menu bar
-  filemenu = Menu(menubar)#, tearoff=0)
-  filemenu.add_command(label="Open", command=hello)
-  filemenu.add_command(label="Open", command=hello)
-  filemenu.add_separator()
-  filemenu.add_command(label="Exit", command=root.quit)
-  menubar.add_cascade(label="File", menu=filemenu)
-
-  # create more pulldown menus
-  editmenu = Menu(filemenu, tearoff=0)
-  editmenu.add_command(label="Cut", command=hello)
-  editmenu.add_command(label="Copy", command=hello)
-  editmenu.add_command(label="Paste", command=hello)
-  filemenu.add_cascade(label="Edit", menu=editmenu)
-
-  helpmenu = Menu(menubar, tearoff=0)
-  helpmenu.add_command(label="About", command=hello)
-  menubar.add_cascade(label="Help", menu=helpmenu)
-
-  # display the menu
-  root.config(menu=menubar)
+  print(os.getcwd())
+  menu = MenuBar(root, [
+   ("File", [("Peekaboo!",None)]),
+   ("Edit", [("Test", None)]),
+  ])
+  root.config(menu=menu)
+  
+  mainWindow = Frame(root, bg="blue")
+  console = Frame(root, bg="white", width=50)
+  background = Background(mainWindow, "img/dark.png")
+  #Label(mainWindow, text="I am a label").pack()
+  
+  a = MultiColumnList(mainWindow, ("Test", "Hi"))
+  a.addItem(("Column 1", "Column 2"))
+  a.addItem(("Column 4", "Column 1"))
+  
+  list = TextQueueWatcher(console, consoleQueue)
+  list.pack(side="left", fill='both', expand=True)
+  scrollbar = ttk.Scrollbar(console, command=list.yview)
+  scrollbar.pack(side="right", fill="y", expand=True, anchor="e")
+  #Configures the tree such that scrolling while focused on the tree moves the bar
+  list.configure(yscrollcommand=scrollbar.set)
+  list.insert("Entry")
+  list.insert("New Entry")
+  list.insert("New Entry")
+  
+  import threading, time
+  def test():
+    for i in range(100):
+      log.info("Test",i)
+      time.sleep(1)
+      
+  newthread = threading.Thread(target=test)
+  
+  newthread.start()
+  
+  root.grid_columnconfigure(0, weight=4)
+  root.grid_columnconfigure(1, weight=1)
+  root.grid_rowconfigure(0, weight=2)
+  root.grid_rowconfigure(1, weight=1)
+  mainWindow.grid(row=0, column=0, rowspan=2, sticky="nsew")
+  Frame(root, bd=5, bg="black", width=50).grid(row=0, column=1, sticky="nsew")
+  console.grid(row=1, column=1, sticky="nsew")
   
   # background_image = tk.PhotoImage(file="img\\bright.png")
   # background_label = tk.Label(root, image = background_image)
