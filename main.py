@@ -19,7 +19,8 @@ def checkUpdates():
 
 
 def main():  
-  pass
+  import mainDisplay
+  #mainDisplay.main()
   
   
 if __name__ == "__main__":

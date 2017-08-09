@@ -89,13 +89,14 @@ class Background():
     elif filename and filename != self.filename:
       self.filename = filename
       self.img = Image.open(filename)
-    print(self.img.size)
-    print(self.size)
     #Find the smallest size so that the image doesn't overflow the
-    multiplier = min(*[self.size[i]/self.img.size[i] for i in range(2)])
-    print(multiplier)
+    multiplier = max(*[self.size[i]/self.img.size[i] for i in range(2)])
+    # log.info(self.img.size)
+    # log.info(self.size)
+    # log.info(multiplier)
     try:
       newImg = self.img.resize([math.floor(i * multiplier) for i in self.img.size], Image.BICUBIC)
+      #newImg = newImg.crop([0, 0, self.size[0], newImg.size[1]]) #Crop so it's left-aligned and vertically center
     except ValueError: #Done when the canvas size is listed as (1,1) before full initialization
       return #Don't do anything here
     self.tkImage = ImageTk.PhotoImage(newImg)
@@ -158,23 +159,33 @@ class MultiColumnList(ttk.Treeview):
     self.lastSorted = column
     
 class TextQueueWatcher(tk.Text):
-  def __init__(self, parent, queue, pollTime = 250):
+  def __init__(self, parent, queue, pollTime = 250, maxChars = 1000000):
     self.parent = parent
     self.queue  = queue
     self.pollTime = pollTime #In milliseconds
+    self.maxChars = maxChars #Maximum chars before we start dropping lines
     self._hasInsert = False
-    super().__init__(parent, width=10, height=1, state="disabled")
+    super().__init__(parent, width=15, height=1, state="disabled")
     #Whenever size changes, reset to end of list
     parent.bind("<Configure>", self.scrollToEnd)
     
     #Start waiting for queue messages
     self.poll()
     
+  def insertMessage(self, msg):
+    print(msg)
+    print(dir(msg))
+    self.insert(msg.msg)
+    
   def insert(self, toInsert):
     #First line we don't have a newline
     if self._hasInsert: toInsert = "\n"+toInsert
     #Set state so we can write
     self.config(state="normal")
+    #First check if we have too big of a thing
+    if len(self.get("1.0", "end-1c")) > self.maxChars:
+      #From: https://stackoverflow.com/q/26267069/2547742
+      self.delete("1.0","2.0") #Just delete a line at a time. Eventually it should even out
     #Add to end
     super().insert("end", toInsert)
     #Remove ability to write
@@ -202,8 +213,8 @@ class TextQueueWatcher(tk.Text):
     self.after(self.pollTime, self.poll)
     
 
-def main(title, size = (200,200)):
-  root = tk.Tk()
+def main(title, size = (200,400)):
+  root = Window()
   root.title(title)
   root.minsize(width = size[0], height = size[1])
   
@@ -214,121 +225,31 @@ def main(title, size = (200,200)):
   ])
   root.config(menu=menu)
   
-  mainWindow = Frame(root, bg="blue")
-  console = Frame(root, bg="white", width=50)
+  mainWindow = tk.Frame(root)
+  console = tk.Frame(root)
   background = Background(mainWindow, "img/dark.png")
-  #Label(mainWindow, text="I am a label").pack()
   
   a = MultiColumnList(mainWindow, ("Test", "Hi"))
-  a.addItem(("Column 1", "Column 2"))
-  a.addItem(("Column 4", "Column 1"))
+  # a.addItem(("Column 1", "Column 2"))
+  # a.addItem(("Column 4", "Column 1"))
   
   list = TextQueueWatcher(console, consoleQueue)
   list.pack(side="left", fill='both', expand=True)
   scrollbar = ttk.Scrollbar(console, command=list.yview)
-  scrollbar.pack(side="right", fill="y", expand=True, anchor="e")
+  scrollbar.pack(side="right", fill="y", expand=False)
   #Configures the tree such that scrolling while focused on the tree moves the bar
   list.configure(yscrollcommand=scrollbar.set)
-  list.insert("Entry")
-  list.insert("New Entry")
-  list.insert("New Entry")
+  # list.insert("Entry")
   
   root.grid_columnconfigure(0, weight=4)
   root.grid_columnconfigure(1, weight=1)
   root.grid_rowconfigure(0, weight=2)
   root.grid_rowconfigure(1, weight=1)
   mainWindow.grid(row=0, column=0, rowspan=2, sticky="nsew")
-  Frame(root, bd=5, bg="black", width=50).grid(row=0, column=1, sticky="nsew")
+  tk.Frame(root, width=50).grid(row=0, column=1, sticky="nsew")
   console.grid(row=1, column=1, sticky="nsew")
-
+  
   root.mainloop()
 
 if __name__ == "__main__":
-
-  import tkinter as tk
-  from tkinter import ttk
-  
-  # root = tk.Tk()
-  # var = tk.StringVar(root)
-  # var.set("test")
-  # ttk.OptionMenu(root, var, "test", "test", "other test", "thing").pack()
-  
-  # root.mainloop()
-  
-  # return
-  
-  root = tk.Tk()
-  root.title("Title")
-  root.minsize(width=200, height=200)
-
-  # a = MenuBar(root)
-  # a.addOptions(
-    # ("Test", [
-      # ("-",),
-      # ("Why", None),
-      # ("Test Button", {"type":"radiobutton"}, None),
-      # ("Test cascade", (
-        # ("Button Button", None),
-        # ("The best button", None),
-        # ("Second cascade!!!", [
-          # ["I am test button", (
-            # ("Hidden stuff", None),
-          # )]
-        # ])
-      # )),
-      # ("Test Button 2", {"type":"radiobutton"}, None)
-    # ])
-  # )
-  # root.config(menu=a)
-  # root.mainloop()  
-  # raise Exception
-  
-  print(os.getcwd())
-  menu = MenuBar(root, [
-   ("File", [("Peekaboo!",None)]),
-   ("Edit", [("Test", None)]),
-  ])
-  root.config(menu=menu)
-  
-  mainWindow = Frame(root, bg="blue")
-  console = Frame(root, bg="white", width=50)
-  background = Background(mainWindow, "img/dark.png")
-  #Label(mainWindow, text="I am a label").pack()
-  
-  a = MultiColumnList(mainWindow, ("Test", "Hi"))
-  a.addItem(("Column 1", "Column 2"))
-  a.addItem(("Column 4", "Column 1"))
-  
-  list = TextQueueWatcher(console, consoleQueue)
-  list.pack(side="left", fill='both', expand=True)
-  scrollbar = ttk.Scrollbar(console, command=list.yview)
-  scrollbar.pack(side="right", fill="y", expand=True, anchor="e")
-  #Configures the tree such that scrolling while focused on the tree moves the bar
-  list.configure(yscrollcommand=scrollbar.set)
-  list.insert("Entry")
-  list.insert("New Entry")
-  list.insert("New Entry")
-  
-  import threading, time
-  def test():
-    for i in range(100):
-      log.info("Test",i)
-      time.sleep(1)
-      
-  newthread = threading.Thread(target=test)
-  
-  newthread.start()
-  
-  root.grid_columnconfigure(0, weight=4)
-  root.grid_columnconfigure(1, weight=1)
-  root.grid_rowconfigure(0, weight=2)
-  root.grid_rowconfigure(1, weight=1)
-  mainWindow.grid(row=0, column=0, rowspan=2, sticky="nsew")
-  Frame(root, bd=5, bg="black", width=50).grid(row=0, column=1, sticky="nsew")
-  console.grid(row=1, column=1, sticky="nsew")
-  
-  # background_image = tk.PhotoImage(file="img\\bright.png")
-  # background_label = tk.Label(root, image = background_image)
-  # background_label.place(x=0, y=0, relwidth=1, relheight=1)
-
-  root.mainloop()
+  main("Title")
