@@ -1,13 +1,54 @@
 #Handles all the GUI work for the main program
-import math
+import math, queue
 import tkinter as tk
 from tkinter import ttk
 from log import log, consoleQueue, EmptyException
 from os.path import join
 from PIL import Image, ImageTk
 
+class EventReceiver():
+  _tkRoot = None
+  _queue = queue.Queue()
+  _events = {}
+  
+  @staticmethod
+  def bindRoot(root):
+    if not isinstance(root, tk.Tk):
+      raise TypeError("root bound must be tk.Tk, not" + str(type(root)))
+    EventReceiver._tkRoot = root
+  
+  #Will go through the event queue and clear events. This should be bound to the <<Event>> event in root
+  @staticmethod
+  def clearEvents(*args):
+    while True:
+      try:
+        event = EventReceiver._queue.get_nowait() #Event should be 3-tuple of (eventString, args, kwargs)
+      except queue.Empty:
+        return
+      else: #If we have an event
+        if event[0] in EventReceiver._events: #If we have handlers
+          for handler in EventReceiver._events[event[0]]: #Go through each handler
+            handler(*event[1], **event[2]) #Call the handler with given arguments as args and kwargs
+  
+  @staticmethod
+  def bindExternalEvent(event, callback):
+    if type(event) != str:
+      raise TypeError("event identifier must be a string")
+    if not callable(callback):
+      raise TypeError("bound event was not a callable function")
+    try: #Add it to the list of callbacks to call on this event
+      EventReceiver._events[event].append(callback)
+    except KeyError:
+      EventReceiver._events[event] = [callback] #Array of 1 callback
+      
+  #Makes an event with the given arguments
+  @staticmethod
+  def createEvent(event, *args, **kwargs):
+    if event in EventReceiver._events: #If we have a key for this
+      EventReceiver._queue.put_nowait((event, args, kwargs)) #Add the event to the queue
+      EventReceiver._tkRoot.event_generate("<<Event>>", when="tail") #Create an event for the root to clear all
 
-class Window(tk.Tk):
+class Window(tk.Tk, EventReceiver):
   def __init__(self, title = None, icon = join("img", "mainIcon.ico"), *args, **kwargs):
     super().__init__(*args, **kwargs)
     if title: self.title(title)
@@ -15,6 +56,8 @@ class Window(tk.Tk):
       try: self.iconbitmap(icon)
       except: pass
     #ttk.Style().theme_use("clam") #Looks weird when widgets don't take up whole space. Maybe someday
+    self.bindRoot(self)
+    self.bind("<<Event>>", self.clearEvents) #When we get an event, clear them all
 
 class MenuBar(tk.Menu):
   def __init__(self, parent, toAdd = None, tearoff=0):
@@ -158,7 +201,7 @@ class MultiColumnList(ttk.Treeview):
       self.heading(self.lastSorted, text=self.lastSorted)
     self.lastSorted = column
     
-class TextQueueWatcher(tk.Text):
+class TextQueueWatcher(tk.Text, EventReceiver):
   def __init__(self, parent, queue, pollTime = 250, maxChars = 1000000):
     self.parent = parent
     self.queue  = queue
@@ -168,6 +211,9 @@ class TextQueueWatcher(tk.Text):
     super().__init__(parent, width=15, height=1, state="disabled")
     #Whenever size changes, reset to end of list
     parent.bind("<Configure>", self.scrollToEnd)
+    
+    #Example of how to use the event system
+    self.bindExternalEvent("message", self.insert)
     
     #Start waiting for queue messages
     self.poll()
