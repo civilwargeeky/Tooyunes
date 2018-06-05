@@ -6,6 +6,8 @@ from log import log, consoleQueue, EmptyException
 from os.path import join
 from PIL import Image, ImageTk
 
+import msgBox
+
 class EventReceiver():
   _tkRoot = None
   _queue = queue.Queue()
@@ -265,7 +267,7 @@ def main(title, size = (200,400)):
   root.minsize(width = size[0], height = size[1])
   
   menu = MenuBar(root, [
-   ("File", []),
+   ("File", [("Save", lambda: msgBox.errorBox("Error: Cannot save"))]),
    ("Edit", []),
    ("Preferences", []),
   ])
