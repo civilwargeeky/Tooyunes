@@ -1,12 +1,6 @@
 import msgBox, updater
 from log import log
 
-#No matter what, we have to make sure TCL and TK can be found
-from os import environ, getcwd, path
-if path.exists("lib"):
-  environ["TCL_LIBRARY"] = path.join(getcwd(), "lib", "tcl8.6")
-  environ["TK_LIBRARY"]  = path.join(getcwd(), "lib", "tk8.6")
-
 #Returns false if the program should abort, true otherwise
 def checkUpdates():
   try:

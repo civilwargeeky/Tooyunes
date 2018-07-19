@@ -3,29 +3,33 @@ import logging, logging.handlers, queue, sys
 
 #Should be included by the display to poll
 consoleQueue = queue.Queue(100)
-EmptyException = queue.Empty #For convenience in handlers
+EmptyException = queue.Empty  #For convenience in handlers
 
 factory = logging.getLogRecordFactory()
+
+
 def print_formatting(*args, **kwargs):
   newArgs = list(args)
   #So this changes the message attribute to be a string of the msg and all args joined together
   newArgs[4] = " ".join([str(i) for i in ([args[4]] + list(args[5]))])
-  newArgs[5] = tuple() #Then don't try formatting again
+  newArgs[5] = tuple()  #Then don't try formatting again
   return factory(*newArgs, **kwargs)
+
+
 logging.setLogRecordFactory(print_formatting)
+
 
 class NoErrorQueueHandler(logging.handlers.QueueHandler):
   def enqueue(self, record):
     try:
       super().enqueue(record)
-    except queue.Full: #Ignore records over max
-      pass 
-
+    except queue.Full:  #Ignore records over max
+      pass
 
 #All the loggers
 log = logging.getLogger("main")
 log.setLevel(logging.DEBUG)
-fileHandler = logging.FileHandler("last.log", mode = "w", delay = True)
+fileHandler = logging.FileHandler("last.log", mode="w", delay=True)
 fileHandler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s]: %(message)s"))
 log.addHandler(fileHandler)
 #Standard debug stream
