@@ -2,22 +2,37 @@ import json, io, subprocess, re, os, threading, logging
 from mutagen.easyid3 import EasyID3
 from concurrent.futures import ThreadPoolExecutor
 
+# NOTE: FOR FUTURE https://github.com/ytdl-org/youtube-dl/#embedding-youtube-dl
+# This module should only handle downloading the videos and putting them in the cache, updating the data store
+
 import Settings
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger()
 
 #This will be an object that handles inheritance, getting and setting in a sane way, etc.
-Settings.ytdl.updateDefaults({
+settings = Settings.ytdl
+settings.updateDefaults({
   "videoStorageDir": "_VideoStore",
   "videoFormatString": "%(id)s.%(ext)s",
   "concurrentDownloads": 10,
+  "youtube_dl": r"resources\youtube-dl.exe",
+  "datastore": "_data.json", # This is a big json file that contains all the information for all songs downloaded
+  "pipeOptions": {"text": True, "stderr": subprocess.STDOUT},
+  "formatString": "%(id)s.%(ext)s"
+  "youtubeWait": 5, # Time in between each call to youtube.com
 })
 
 class TimedLock:
-  """ This is a lock that you only need to acquire, and will automatically free after a timer"""
+  """ 
+  This is a lock that you only need to acquire, and will automatically free after a timer
+  The point of this is that we should have a certain amount of time in between requests to youtube to prevent being rate limited
+  """
 
-  def __init__(self, timeout: int):
+  def __init__(self, timeout: float):
+    """
+    timeout: the time after the lock is acquired that it will be released, in seconds
+    """
     self.lock = threading.Lock()
     self.timeout = timeout
 
@@ -37,10 +52,6 @@ class TimedLock:
 class VideoProcessor:
   YOUTUBE_DL = r"resources\youtube-dl.exe"
   DATASTORE = "_data.json" # File name, goes into the storage folder given in init
-
-  pipeOptions = {"text": True, "stderr": subprocess.STDOUT}
-  formatString = "%(id)s.%(ext)s"
-  youtubeWait = 5 # Time in between each call to youtube.com
   
   def __init__(self, storageFolder="_VideoStore", concurrentDownloads=None):
     self.youtubeOptions = Settings.ytdl #Copy the class instance
@@ -97,7 +108,7 @@ class VideoProcessor:
     self.youtubeLock.acquire() # Wait the requisite amount of time
     log.debug("Downloading Song '{}'".format(song))
     obj = subprocess.Popen(
-      [self.YOUTUBE_DL] + # Executable
+      [settings["youtube_dl"]] + # Executable
       self.flattenDict(audioOptions) + #Turn the dict items into a list where key is before value. Bools are special. If false, not added, otherwise only key
       ["-o", os.path.join(self.folder, self.formatString)] + #Output format and folder
       ["--", song], #Then add song as input
@@ -137,8 +148,6 @@ class VideoProcessor:
     if toSetDict is None: # If we aren't given anything, get the info from youtube
       toSetDict = self.getInfo(id)
 
-  def getInfo(self, id:str):
-      
   def changeMP3Tags(self, filePath, optionsDict):
     file = EasyID3(filePath)
     for key, value in optionsDict.items():
