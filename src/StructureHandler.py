@@ -9,7 +9,7 @@ Class Structure
 import Settings
 
 # For settings related to all musicsets, and should be edited in other modules
-Settings.musicSet.updateDefaults({
+Settings.musicSetSettings.updateDefaults({
   "name": "Default Set",
   "playlists": None, # Should be a dict of url to folder name. Multiple urls can go to the same folder, if desired.
     # NOTE: Could have a situation where multiple playlists in same folder have same id. This should be okay we do settings per-id globally
@@ -20,6 +20,7 @@ Settings.musicSet.updateDefaults({
 songSettings = Settings.SettingsDict({
   "id": None, # Youtube/Song id of song
   "folder": "",
+  "filename": None,
   ### These are items stored as MP3 data ###
   "title": "Default Song",
   "artist": "DJ Dan",
@@ -35,9 +36,17 @@ class MusicSet:
   """
   
   def __init__(self): 
-    self.settings = Settings.musicSet.createInstance()
+    self.settings = Settings.musicSetSettings.createInstance()
     self.songSettings = songSettings.createInstance() # Create a new instance for default settings in this musicset
     
+  def sync(self):
+    currentConfig = getID3FromAllSongs() # {"id": {"title", "artist", "folder"}}
+    
+    event = donwloadSongsWeDontHave(currentConfig)
+    
+    renameSongsWeDoHave(self.generateConfig())
+    
+    event.wait()
 
 class Song:
   """
@@ -48,4 +57,6 @@ class Song:
     """
     parent: A MusicSet instance where this song gets its song settings from.
     """
-    self.settings = parent.songSettings.createInstance()
+    # So each song should have a default value which is assigned automatically, then allow for an override from the user as settings
+    self.defaults = parent.songSettings.createInstance()
+    self.settings = self.defaults.createInstance()

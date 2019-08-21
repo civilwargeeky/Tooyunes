@@ -83,6 +83,10 @@ class SettingsDict(dict):
   def getDefault(self, key):
     return self._defaults[key]
     
+  def isDefault(key):
+    """ Returns true if the key is in the defaults and not in the top layer, false otherwise """
+    return not super.__contains__(key) and key in self._defaults
+    
   # NOTE: Keys should always be cleared rather than set to the default value, as the default is global and could be changed.
   def resetKey(self, key):
     del self[key]
@@ -91,6 +95,7 @@ class SettingsDict(dict):
     self.clear()
 
 # Here is globally-accessible objects. These can be updated between modules
-ytdl = SettingsDict()
-musicSet = SettingsDict()
-ui   = SettingsDict()
+youtubeSettings  = SettingsDict()
+musicSetSettings = SettingsDict()
+ui               = SettingsDict()
+databaseSettings = SettingsDict()

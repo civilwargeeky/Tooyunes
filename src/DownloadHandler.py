@@ -11,16 +11,14 @@ logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger()
 
 #This will be an object that handles inheritance, getting and setting in a sane way, etc.
-settings = Settings.ytdl
+settings = Settings.youtubeSettings
 settings.updateDefaults({
-  "videoStorageDir": "_VideoStore",
-  "videoFormatString": "%(id)s.%(ext)s",
   "concurrentDownloads": 10,
   "youtube_dl": r"resources\youtube-dl.exe",
-  "datastore": "_data.json", # This is a big json file that contains all the information for all songs downloaded
   "pipeOptions": {"text": True, "stderr": subprocess.STDOUT},
-  "formatString": "%(id)s.%(ext)s"
+  "formatString": "%(id)s.%(ext)s",
   "youtubeWait": 5, # Time in between each call to youtube.com
+  "youtubeSettings": {},
 })
 
 class TimedLock:
@@ -50,28 +48,11 @@ class TimedLock:
 
 
 class VideoProcessor:
-  YOUTUBE_DL = r"resources\youtube-dl.exe"
-  DATASTORE = "_data.json" # File name, goes into the storage folder given in init
-  
+
   def __init__(self, storageFolder="_VideoStore", concurrentDownloads=None):
-    self.youtubeOptions = Settings.ytdl #Copy the class instance
-    
-    self.folder = storageFolder
-    try: os.makedirs(self.folder)
-    except FileExistsError: pass
-
-    self.database = {
-      "videos": {}
-    }
-    try:
-      with open(os.path.join(self.folder, self.DATASTORE)) as file:
-        self.database = json.load(file)
-    except FileNotFoundError: # If there's no file yet, just ignore this
-      pass
-
     self.executor = ThreadPoolExecutor(max_workers=concurrentDownloads)
-    self.youtubeLock = TimedLock(self.youtubeWait)
-    log.debug("Initialized VideoProcessor")
+    self.youtubeLock = TimedLock(settings["youtubeWait"])
+    log.info("Initialized Download and Conversion Processor")
     
   @staticmethod
   def flattenDict(inputDict: dict) -> list:
@@ -103,16 +84,16 @@ class VideoProcessor:
     audioOptions = {"-x": True, "--audio-format": "mp3", "--audio-quality": "0"}
     if writeJSON:
       audioOptions["--write-info-json"] = True
-    audioOptions.update(self.youtubeOptions)
+    audioOptions.update(settings["youtubeSettings"])
 
     self.youtubeLock.acquire() # Wait the requisite amount of time
     log.debug("Downloading Song '{}'".format(song))
     obj = subprocess.Popen(
       [settings["youtube_dl"]] + # Executable
       self.flattenDict(audioOptions) + #Turn the dict items into a list where key is before value. Bools are special. If false, not added, otherwise only key
-      ["-o", os.path.join(self.folder, self.formatString)] + #Output format and folder
+      ["-o", os.path.join(self.folder, settings["formatString"])] + #Output format and folder
       ["--", song], #Then add song as input
-      **self.pipeOptions, #Add in subprocess options
+      **settings["pipeOptions"], #Add in subprocess options
       stdout=subprocess.PIPE #Also this for now
     )
     
@@ -137,8 +118,8 @@ class VideoProcessor:
     try:
       self.youtubeLock.acquire() # Wait the requisite amount of time
       log.debug("Getting info for '{}'".format(url))
-      #                                                                                                                          -- in case youtube url begins with "-"
-      output = subprocess.check_output([self.YOUTUBE_DL, "-J", "--flat-playlist" if flat else ""] + self.flattenDict(self.youtubeOptions) + ["--", url], **self.pipeOptions)
+      #                                                                                                                                         -- in case youtube url begins with "-"
+      output = subprocess.check_output([settings["youtube_dl"], "-J", "--flat-playlist" if flat else ""] + self.flattenDict(settings["youtubeSettings"]) + ["--", url], **settings["pipeOptions"])
     except subprocess.CalledProcessError as e:
       return e.output
     else:
@@ -154,8 +135,9 @@ class VideoProcessor:
       file[key] = value
     file.save(v2_version=3) # Save as version 3 so windows can see the tags
 
+handler = VideoProcessor()
 if __name__ == "__main__":
-  handler = VideoProcessor()
+  
   info = handler.getInfo(r"https://www.youtube.com/playlist?list=PLeihsqiyYb0E_Ny6jBSvNdqYwKDQGEns1")
   info = handler.getInfo(r"https://www.youtube.com/playlist?list=PLeihsqiyYb0EQjDvZY401UCdoxxOsDu24")
   print(info)
