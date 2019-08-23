@@ -74,6 +74,15 @@ class SettingsDict(dict):
       toRet._defaults = self._defaults
     return toRet
     
+  def setDefaultDict(self, defaultDict):
+    if not issubclass(defaultDict, dict):
+      raise TypeError("SettingsDict default dict must be dict subclass")
+    for key in self.keys():
+      if key not in defaultDict:
+        raise KeyError("SettingsDict default dict must contain all keys in current dict, does not contain '{}'".format(key))
+    # Actually set dict
+    self._defaults = defaultDict
+  
   def updateDefaults(self, updateDict = None, **updates):
     """ Will update defaults from either an update dictionary or a set of keyword argument updates """
     if updateDict is None: # If not specified as dict, use kwargs. If these are empty, do nothing
@@ -96,6 +105,11 @@ class SettingsDict(dict):
 
 # Here is globally-accessible objects. These can be updated between modules
 youtubeSettings  = SettingsDict()
-musicSetSettings = SettingsDict()
 ui               = SettingsDict()
 databaseSettings = SettingsDict()
+application      = SettingsDict()
+
+application.updateDefaults({
+  "outputDir": "", # By default just put it in the working directory
+  "musicExtension": ".mp3",
+})

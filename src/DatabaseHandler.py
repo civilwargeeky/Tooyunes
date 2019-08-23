@@ -1,15 +1,20 @@
 import json, logging, os, os.path
 from time import time
-from Settings import databaseSettings as settings
+import Settings
+
+settings = Settings.databaseSettings
+settings.updateDefaults({
+  "videoStorageDir": "_VideoStore",
+  "database_file": "_data.json", # This is a big json file that contains all the information for all songs downloaded
+})
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger()
 
-settings.updateDefaults({
-  "videoStorageDir": "_VideoStore",
-  "database_file": "_data.json", # This is a big json file that contains all the information for all songs downloaded
-  "musicExtension": ".mp3",
-})
+def getVideoFolder(id=None):
+  if id is not None:
+    return os.path.join(settings["videoStorageDir"], id+Settings.application["musicExtension"])
+  return settings["videoStorageDir"]
 
 """
 Format of Database:
@@ -20,7 +25,7 @@ Format of Database:
       length: length of song (in seconds)
       downloadedAt: timestamp of when the song was downloaded. None or 0 for not downloaded currently
       song_title: alt_title, if available
-      song_author: author, if available
+      song_artist: artist, if available
       song_album: album, if available
       ytinfo: all the data given about this song in the playlist abstract
     }
@@ -33,10 +38,10 @@ def initialize(clear=False):
   log.debug("Initializing song database")
   song_files = []
   try: 
-    os.makedirs(settings["videoStorageDir"])
+    os.makedirs(getVideoFolder())
     log.debug("Created song cache folder")
   except FileExistsError: 
-    song_files = os.listdir(settings["videoStorageDir"])
+    song_files = os.listdir(getVideoFolder())
     log.debug("Song cache folder already exists, contains {} songs.".format(len(song_files)))
 
   if clear:
@@ -54,7 +59,7 @@ def initialize(clear=False):
     
   # Here we rectify any videos that exist in the database but not the files or vice-versa
   for song_id in list(database["videos"]): # List so we can delete
-    if song_id+settings["musicExtension"] not in song_files: # If the song's id doesn't correspond with a file
+    if song_id+Settings.application["musicExtension"] not in song_files: # If the song's id doesn't correspond with a file
       if not "title" in getSong(song_id): # If it is just a dummy from a previous iteration, don't include it
         del database["videos"][song_id]
       else:
@@ -63,9 +68,9 @@ def initialize(clear=False):
   # Vice-Versa
   for song_file in song_files:
     song_id, song_ext = os.path.splitext(song_file)
-    if song_ext not in settings["musicExtension"]: # If there were any extraneous file left over, remove them at this time
+    if song_ext not in Settings.application["musicExtension"]: # If there were any extraneous file left over, remove them at this time
       log.debug("found extranneous file '{}', removing".format(song_file))
-      os.remove(os.path.join(settings["videoStorageDir"], song_file))
+      os.remove(os.path.join(getVideoFolder(), song_file))
     elif song_id not in database["videos"]: # If the file doens't correspond to a database entry
       log.debug("Song '{}' has file but not in database, adding dummy entry".format(song_id)) # NOTE: This could probably be done asynchronously so to not hang up load
       getSong(song_id)["downloadedAt"] = int(time()) # Creates a blank song if it doesn't exist
@@ -80,6 +85,12 @@ def getSong(id):
     toRet = {"downloadedAt": None}
     database["videos"][id] = toRet
     return toRet
+    
+def isDownloaded(id):
+  try:
+    return bool(database["videos"][id]["downloadedAt"])
+  except KeyError:
+    return False
 
 def addSongFromDict(inDict):
   """
@@ -101,7 +112,7 @@ def addSongFromDict(inDict):
       ("author", "uploader"),
       ("length", "duration"),
       ("song_title", "alt_title"),
-      ("song_author", "artist"),
+      ("song_artist", "artist"),
       ("song_album", "album")
     ):
       songDict[myKey] = inDict[theirKey]
@@ -129,7 +140,7 @@ def printSongs():
   for key in list(copy):
     if "title" not in copy[key]:
       del copy[key]
-  keys = ("title", "song_title", "song_author", "song_album")
+  keys = ("title", "song_title", "song_artist", "song_album")
   print("-"*80, end="")
   print("|".join(clamp(i, 19) for i in keys))
   print(("-"*19+"+")*3+"-"*20, end="")

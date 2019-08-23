@@ -10,16 +10,18 @@ import DatabaseHandler
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger()
 
-#This will be an object that handles inheritance, getting and setting in a sane way, etc.
 settings = Settings.youtubeSettings
+
+#This will be an object that handles inheritance, getting and setting in a sane way, etc.
 settings.updateDefaults({
   "concurrentDownloads": 8,
   "youtube_dl": r"resources\youtube-dl.exe",
   "pipeOptions": {"universal_newlines": True, "stderr": subprocess.STDOUT},
   "formatString": "%(id)s.%(ext)s",
-  "youtubeWait": 1, # Time in between each call to youtube.com
+  "youtubeWait": 0.1, # Time in between each call to youtube.com
   "youtubeSettings": {},
 })
+
 
 class TimedLock:
   """ 
@@ -61,10 +63,13 @@ class VideoProcessor:
     
   def _testPlaylist(self, url):
     futures = []
+    ids = []
     for info in self.getInfo(url)["entries"]:
-      future = self.submitSong(info["id"], print, lambda id, success: print("Finished song {} with {}".format(id, "success!" if success else "failure")))
-      future.id_ = info["id"]
-      futures.append(future)
+      if not DatabaseHandler.isDownloaded(info["id"]):
+        future = self.submitSong(info["id"], print, lambda id, success: print("Finished song {} with {}".format(id, "success!" if success else "failure")))
+        future.id_ = info["id"]
+        futures.append(future)
+        ids.append(info["id"])
     try:
       print("Waiting for futures!")
       ThreadWait(futures)
@@ -73,8 +78,9 @@ class VideoProcessor:
       print("Failures:")
       for future in futures:
         if not future.result():
+          ids.remove(future.id_)
           print(future.id_)
-    
+    return ids
 
   def submitSong(self, songID, *args, **kwargs):
     log.debug("Submitting song '{}' for processing".format(songID))
@@ -89,7 +95,7 @@ class VideoProcessor:
     if "/" in songID:
       raise AssertionError("processSong cannot handle URLs, only youtube video ids")
     
-    videoDir = DatabaseHandler.settings["videoStorageDir"]
+    videoDir = DatabaseHandler.getVideoFolder()
     infoFile = os.path.join(videoDir, songID+".info.json")
     
     exit_code, text = self.downloadSong(songID, outputFolder = videoDir, outputFunction = outputFunction)
