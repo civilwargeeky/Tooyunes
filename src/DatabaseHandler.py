@@ -5,7 +5,7 @@ import Settings
 settings = Settings.databaseSettings
 settings.updateDefaults({
   "videoStorageDir": "_VideoStore",
-  "database_file": "_data.json", # This is a big json file that contains all the information for all songs downloaded
+  "databaseFile": "_data.json", # This is a big json file that contains all the information for all songs downloaded
 })
 
 logging.basicConfig(level=logging.DEBUG)
@@ -24,9 +24,9 @@ Format of Database:
       author: name of the channel this video came from
       length: length of song (in seconds)
       downloadedAt: timestamp of when the song was downloaded. None or 0 for not downloaded currently
-      song_title: alt_title, if available
-      song_artist: artist, if available
-      song_album: album, if available
+      songTitle: alt_title, if available
+      songArtist: artist, if available
+      songAlbum: album, if available
       ytinfo: all the data given about this song in the playlist abstract
     }
 """
@@ -48,7 +48,7 @@ def initialize(clear=False):
     log.info("Clearing Database")
   else:
     try:
-      with open(settings["database_file"]) as file:
+      with open(settings["databaseFile"]) as file:
         database.update(json.load(file))
       log.debug("Database file found and loaded")
     except FileNotFoundError: # If there's no file yet, just ignore this
@@ -111,9 +111,9 @@ def addSongFromDict(inDict):
       ("title", "title"),
       ("author", "uploader"),
       ("length", "duration"),
-      ("song_title", "alt_title"),
-      ("song_artist", "artist"),
-      ("song_album", "album")
+      ("songTitle", "alt_title"),
+      ("songArtist", "artist"),
+      ("songAlbum", "album")
     ):
       songDict[myKey] = inDict[theirKey]
     for key in ("formats", "requested_formats"): # These are like horrendously long, and time-dependant so don't save it
@@ -127,7 +127,7 @@ def setDownloaded(id, state=True):
 
 def save():
   log.debug("Saving database")
-  with open(settings["database_file"], "w") as file:
+  with open(settings["databaseFile"], "w") as file:
     json.dump(database, file)
   
 def printSongs():
@@ -140,7 +140,7 @@ def printSongs():
   for key in list(copy):
     if "title" not in copy[key]:
       del copy[key]
-  keys = ("title", "song_title", "song_artist", "song_album")
+  keys = ("title", "songTitle", "songArtist", "songAlbum")
   print("-"*80, end="")
   print("|".join(clamp(i, 19) for i in keys))
   print(("-"*19+"+")*3+"-"*20, end="")
