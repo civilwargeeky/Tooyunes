@@ -58,7 +58,14 @@ class SettingsDict(dict):
             This results in slightly different behaviour if using .notation or [notation] as [notation] will allow settings items without a default
     """
     return super().__contains__(key) or key in self._defaults
-      
+  
+  def copy(self):
+    """ Creates a dict-copy of this object """
+    toRet = {}
+    for key in self:
+      toRet[key] = self[key]
+    return toRet
+  
   def createInstance(self, setDefaults = True):
     """
     Has two modes:
@@ -75,7 +82,7 @@ class SettingsDict(dict):
     return toRet
     
   def setDefaultDict(self, defaultDict):
-    if not issubclass(defaultDict, dict):
+    if not isinstance(defaultDict, dict):
       raise TypeError("SettingsDict default dict must be dict subclass")
     for key in self.keys():
       if key not in defaultDict:
@@ -91,6 +98,9 @@ class SettingsDict(dict):
     
   def getDefault(self, key):
     return self._defaults[key]
+    
+  def getOverrides(self):
+    return super().copy() # Returns a copy of just the elements in self
     
   def isDefault(key):
     """ Returns true if the key is in the defaults and not in the top layer, false otherwise """

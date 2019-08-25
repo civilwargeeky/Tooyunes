@@ -75,7 +75,6 @@ class VideoProcessor:
       ThreadWait(futures)
     finally:
       DatabaseHandler.save()
-      print("Failures:")
       for future in futures:
         if not future.result():
           ids.remove(future.id_)
@@ -148,7 +147,6 @@ class VideoProcessor:
     outputText = ""
     for line in obj.stdout:
       outputText += line
-      #print(line.rstrip())
       match = re.match(r"\[download\]\s+([\d.]+)% of \S+ at\s+([\d.]+\S+)", line) #Matches the download update lines
       if match:
         percent, downloadRate = match.group(1, 2)
@@ -156,7 +154,7 @@ class VideoProcessor:
           outputFunction(song, float(percent), downloadRate) #Update this if we have items
     return obj.wait(), outputText # Wait for process to complete and get return code. Also return the whole output printed to stdout
     
-  def getInfo(self, url):
+  def getInfo(self, url, playlist=True):
     """
     Gets info for a playlist or a song
     :param url: Either youtube id or url
@@ -165,8 +163,9 @@ class VideoProcessor:
     try:
       self.youtubeLock.acquire() # Wait the requisite amount of time
       log.debug("Getting info for '{}'".format(url))
-      #                                                                                                                                         -- in case youtube url begins with "-"
-      output = subprocess.check_output([settings["youtube_dl"], "-J", "--flat-playlist"] + self.flattenDict(settings["youtubeSettings"]) + ["--", url], **settings["pipeOptions"])
+      #                                                                                                                                                   -- in case youtube url begins with "-"
+      output = subprocess.check_output([settings["youtube_dl"], "-J", "--flat-playlist", "--yes-playlist" if playlist else ""] + self.flattenDict(settings["youtubeSettings"]) + ["--", url],
+               **settings["pipeOptions"])
     except subprocess.CalledProcessError as e:
       return e.output
     else:

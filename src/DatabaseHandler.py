@@ -60,10 +60,10 @@ def initialize(clear=False):
   # Here we rectify any videos that exist in the database but not the files or vice-versa
   for song_id in list(database["videos"]): # List so we can delete
     if song_id+Settings.application["musicExtension"] not in song_files: # If the song's id doesn't correspond with a file
-      if not "title" in getSong(song_id): # If it is just a dummy from a previous iteration, don't include it
+      if not "title" in getSongOrInit(song_id): # If it is just a dummy from a previous iteration, don't include it
         del database["videos"][song_id]
       else:
-        getSong(song_id)["downloadedAt"] = None # Mark that video isn't downloaded
+        getSongOrInit(song_id)["downloadedAt"] = None # Mark that video isn't downloaded
       
   # Vice-Versa
   for song_file in song_files:
@@ -73,12 +73,16 @@ def initialize(clear=False):
       os.remove(os.path.join(getVideoFolder(), song_file))
     elif song_id not in database["videos"]: # If the file doens't correspond to a database entry
       log.debug("Song '{}' has file but not in database, adding dummy entry".format(song_id)) # NOTE: This could probably be done asynchronously so to not hang up load
-      getSong(song_id)["downloadedAt"] = int(time()) # Creates a blank song if it doesn't exist
+      getSongOrInit(song_id)["downloadedAt"] = int(time()) # Creates a blank song if it doesn't exist
      
-  save() # Now that all songs have been rectified
+  #save() # Now that all songs have been rectified
   log.info("Database module initialized")
 
 def getSong(id):
+  return database["videos"][id]
+
+def getSongOrInit(id):
+  """ Gets the song, or initializes a new one if doesn't exist """
   try:
     return database["videos"][id]
   except KeyError:
@@ -95,18 +99,19 @@ def isDownloaded(id):
 def addSongFromDict(inDict):
   """
   This takes in a dictionary and updates our database from it. Dict should be from a song, flat-playlist, or a playlist entry
+  Returns dict of song added, or list of songs added if flat-playlist
   """
   # If playlist, add all songs from inside
   if "_type" in inDict:
     if inDict["_type"] == "playlist":
-      for entry in inDict["entries"]:
-        addSongFromDict(entry)
-      return
+      return [addSongFromDict(entry) for entry in inDict["entries"]]
     if inDict["_type"] == "url":
       log.debug("Adding playlist song: "+inDict["title"])
-      getSong(inDict["id"])["title"] = inDict["title"]
+      songDict = getSongOrInit(inDict["id"])
+      songDict["title"] = inDict["title"]
+      return inDict["id"]
   else: # Otherwise assume its a full song dict
-    songDict = getSong(inDict["id"])
+    songDict = getSongOrInit(inDict["id"])
     for myKey, theirKey in (
       ("title", "title"),
       ("author", "uploader"),
@@ -120,10 +125,11 @@ def addSongFromDict(inDict):
       if key in inDict:
         del inDict[key]
     #songDict["ytinfo"] = inDict # Sure it's a bit of redundant information, but it may be useful!
+    return inDict["id"]
   
 def setDownloaded(id, state=True):
   """ Sets a video as downloaded or deleted """
-  getSong(id)["downloadedAt"] = int(time()) if state else None
+  getSongOrInit(id)["downloadedAt"] = int(time()) if state else None
 
 def save():
   log.debug("Saving database")
