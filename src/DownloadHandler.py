@@ -69,7 +69,7 @@ class VideoProcessor:
         future = self.submitSong(info["id"], print, lambda id, success: print("Finished song {} with {}".format(id, "success!" if success else "failure")))
         future.id_ = info["id"]
         futures.append(future)
-        ids.append(info["id"])
+      ids.append(info["id"])
     try:
       print("Waiting for futures!")
       ThreadWait(futures)
