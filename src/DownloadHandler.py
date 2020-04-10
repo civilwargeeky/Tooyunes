@@ -56,6 +56,9 @@ class VideoProcessor:
     self.youtubeLock = TimedLock(settings["youtubeWait"])
     log.info("Initialized Download and Conversion Processor")
     
+    # A set of options. On song download, additional options and those from "settings" are also added
+    self.audioOptions = {"-x": True, "--audio-format": "mp3", "--audio-quality": "0"}
+    
   @staticmethod
   def flattenDict(inputDict: dict) -> list:
     """ Flattens a dictionary into a list where values follow keys. Used for making command line arguments """
@@ -128,7 +131,7 @@ class VideoProcessor:
       --audio-quality: 0 is best
       --write-info-json: Writes the DASH information for the downloaded video to the filename with .info.json appended
     """
-    audioOptions = {"-x": True, "--audio-format": "mp3", "--audio-quality": "0"}
+    audioOptions = self.audioOptions.copy() # Generate a shallow copy of our object's options
     if writeJSON:
       audioOptions["--write-info-json"] = True
     audioOptions.update(settings["youtubeSettings"])
